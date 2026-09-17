@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Countdown</title>
+    <meta name="description" content="Create and track multiple countdown timers. Accurate after refresh, offline, or a closed browser." />
+
+    <!-- Relative paths throughout so it works from a GitHub Pages project subpath. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1016" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Countdown" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="masthead__inner">
+        <div class="brand">
+          <span class="brand__glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="13" r="8" />
+              <path d="M12 13V9" />
+              <path d="M9 2h6" />
+            </svg>
+          </span>
+          <span class="brand__text">
+            <span class="brand__name">Countdown</span>
+            <span class="brand__tag">Track what's coming</span>
+          </span>
+        </div>
+
+        <div class="masthead__actions">
+          <button class="icon-btn icon-btn--bordered" data-act="settings" type="button" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+          <button class="btn btn--primary" data-act="new" type="button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span class="btn__label">New countdown</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+      <p id="storage-warning" class="notice" role="status" hidden>
+        This browser is blocking local storage, so your timers won't be saved when
+        you leave. They'll still count down correctly while this tab stays open.
+      </p>
+
+      <!-- Empty state -->
+      <section id="empty" class="empty" hidden>
+        <span class="empty__glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8" />
+            <path d="M12 13V9" />
+            <path d="M9 2h6" />
+          </svg>
+        </span>
+        <h2>No countdowns yet</h2>
+        <p>Add a timer for a duration like 25 minutes, or a moment in the future like a deadline or a flight.</p>
+        <button class="btn btn--primary" data-act="new" type="button">
+          <span class="btn__label">New countdown</span>
+        </button>
+      </section>
+
+      <!-- Timer grid -->
+      <section id="grid" class="grid" aria-label="Your countdowns" hidden></section>
+    </main>
+
+    <!-- Create / edit modal -->
+    <div id="modal" class="modal" hidden>
+      <div id="modal-backdrop" class="modal__backdrop"></div>
+      <div
+        id="dialog"
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <div class="dialog__head">
+          <h2 id="modal-title">New countdown</h2>
+          <button id="modal-close" class="icon-btn" type="button" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form id="timer-form" novalidate>
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+
+          <div class="field">
+            <label for="timer-name">Name <span class="field__hint">(optional)</span></label>
+            <input
+              type="text"
+              id="timer-name"
+              name="name"
+              maxlength="60"
+              placeholder="e.g. Deadline, Flight, Tea"
+              autocomplete="off"
+            />
+          </div>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset__legend">Count down to</legend>
+            <div class="segmented">
+              <input type="radio" id="type-duration" name="ctype" value="duration" checked />
+              <label for="type-duration">A duration</label>
+              <input type="radio" id="type-datetime" name="ctype" value="datetime" />
+              <label for="type-datetime">A date &amp; time</label>
+            </div>
+          </fieldset>
+
+          <!-- Duration inputs -->
+          <div id="group-duration" class="field">
+            <div class="duration-grid">
+              <div>
+                <label for="dur-days">Days</label>
+                <input type="number" id="dur-days" min="0" max="999" inputmode="numeric" placeholder="0" />
+              </div>
+              <div>
+                <label for="dur-hours">Hours</label>
+                <input type="number" id="dur-hours" min="0" max="23" inputmode="numeric" placeholder="0" />
+              </div>
+              <div>
+                <label for="dur-minutes">Minutes</label>
+                <input type="number" id="dur-minutes" min="0" max="59" inputmode="numeric" placeholder="0" />
+              </div>
+            </div>
+            <div class="chips" role="group" aria-label="Quick add">
+              <button type="button" class="chip" data-add-min="15">+15m</button>
+              <button type="button" class="chip" data-add-min="30">+30m</button>
+              <button type="button" class="chip" data-add-min="60">+1h</button>
+              <button type="button" class="chip" data-add-min="120">+2h</button>
+            </div>
+          </div>
+
+          <!-- Date & time input: a custom picker so the week always starts on
+               Monday and the clock is always 24-hour, regardless of the
+               visitor's browser locale (the native control can't be forced). -->
+          <div id="group-datetime" class="field" hidden>
+            <span class="field__label" id="dt-label">Date &amp; time</span>
+            <div class="dtpick" role="group" aria-labelledby="dt-label">
+              <div class="dtcal">
+                <div class="dtcal__bar">
+                  <button type="button" class="icon-btn" id="dt-prev" aria-label="Previous month">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                  </button>
+                  <span class="dtcal__title" id="dt-title" aria-live="polite"></span>
+                  <button type="button" class="icon-btn" id="dt-next" aria-label="Next month">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                  </button>
+                </div>
+                <div class="dtcal__dow" aria-hidden="true">
+                  <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+                </div>
+                <div class="dtcal__grid" id="dt-grid" role="grid" aria-labelledby="dt-title"></div>
+              </div>
+              <div class="dttime">
+                <label for="dt-hour" id="dt-time-label">Time</label>
+                <div class="dttime__row">
+                  <input type="number" id="dt-hour" class="dttime__num" min="0" max="23" inputmode="numeric" placeholder="00" aria-label="Hour" />
+                  <span class="dttime__colon" aria-hidden="true">:</span>
+                  <input type="number" id="dt-min" class="dttime__num" min="0" max="59" inputmode="numeric" placeholder="00" aria-label="Minute, 0 to 59" />
+                  <select id="dt-ampm" class="dttime__ampm" aria-label="AM or PM" hidden>
+                    <option value="am">AM</option>
+                    <option value="pm">PM</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="timer-sound">Alert sound</label>
+            <div class="sound-row">
+              <select id="timer-sound" class="sound-select"></select>
+              <button type="button" id="sound-preview" class="btn btn--ghost sound-preview" aria-label="Preview sound">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                  <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                </svg>
+                <span>Preview</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="dialog__actions">
+            <button id="form-cancel" class="btn btn--ghost" type="button">Cancel</button>
+            <button id="form-submit" class="btn btn--primary" type="submit">Create countdown</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="settings-modal" class="modal" hidden>
+      <div id="settings-backdrop" class="modal__backdrop"></div>
+      <div
+        id="settings-dialog"
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-title"
+      >
+        <div class="dialog__head">
+          <h2 id="settings-title">Settings</h2>
+          <button id="settings-close" class="icon-btn" type="button" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-row__text">
+            <span class="toggle-row__title">Time format</span>
+            <span class="toggle-row__desc">How target times are shown and entered.</span>
+          </span>
+          <select id="set-timeformat" aria-label="Time format">
+            <option value="24">24-hour</option>
+            <option value="12">12-hour</option>
+            <option value="auto">Auto (your region)</option>
+          </select>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-row__text">
+            <span class="toggle-row__title">Play a sound when a timer ends</span>
+            <span class="toggle-row__desc">Uses each timer's chosen alert sound.</span>
+          </span>
+          <label class="switch">
+            <input type="checkbox" id="set-sound" />
+            <span class="switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-row__text">
+            <span class="toggle-row__title">Throw confetti when a timer ends</span>
+            <span class="toggle-row__desc">A quick burst across the screen. Skipped if you prefer reduced motion.</span>
+          </span>
+          <label class="switch">
+            <input type="checkbox" id="set-confetti" />
+            <span class="switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <span class="toggle-row__text">
+            <span class="toggle-row__title">Notify me when a timer ends</span>
+            <span class="toggle-row__desc">A browser notification, even if this tab is in the background.</span>
+            <span id="notify-hint" class="toggle-hint" role="status" hidden></span>
+          </span>
+          <label class="switch">
+            <input type="checkbox" id="set-notify" />
+            <span class="switch__track" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="confetti" aria-hidden="true"></canvas>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="js/storage.js"></script>
+    <script src="js/format.js"></script>
+    <script src="js/model.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/confetti.js"></script>
+    <script src="js/notify.js"></script>
+    <script src="js/share.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
