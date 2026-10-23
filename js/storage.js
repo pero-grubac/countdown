@@ -12,6 +12,8 @@ CD.storage = (function () {
 
   var KEY = "countdown.timers.v1";
   var SETTINGS_KEY = "countdown.settings.v1";
+  var FILTER_KEY = "countdown.filter.v1";
+  var REPEATS = ["daily", "weekly", "monthly", "yearly"];
   var DEFAULT_SETTINGS = { sound: true, confetti: true, notify: false, timeFormat: "24" };
 
   // Is localStorage actually usable? (private mode / disabled storage / quota)
@@ -38,10 +40,26 @@ CD.storage = (function () {
     );
   }
 
+  // Tags: non-empty trimmed strings, de-duplicated ignoring case, capped.
+  function cleanTags(tags) {
+    if (!Array.isArray(tags)) return [];
+    var seen = {};
+    var out = [];
+    tags.forEach(function (tag) {
+      if (typeof tag !== "string" || out.length >= 8) return;
+      tag = tag.trim().replace(/\s+/g, " ").slice(0, 24).trim();
+      if (!tag || seen[tag.toLowerCase()]) return;
+      seen[tag.toLowerCase()] = true;
+      out.push(tag);
+    });
+    return out;
+  }
+
   // Coerce a stored record into the exact shape the app expects, dropping
-  // anything unexpected. Missing createdAt falls back so progress still works.
+  // anything unexpected. Missing createdAt falls back so progress still works,
+  // and records from before repeat/tags existed become one-off and untagged.
   function normalize(t) {
-    return {
+    var clean = {
       id: String(t.id),
       name: typeof t.name === "string" ? t.name : "",
       targetTime: Number(t.targetTime),
@@ -50,7 +68,21 @@ CD.storage = (function () {
           ? Number(t.createdAt)
           : Number(t.targetTime),
       sound: typeof t.sound === "string" && t.sound ? t.sound : "chime",
+      repeat: REPEATS.indexOf(t.repeat) >= 0 ? t.repeat : "never",
+      tags: cleanTags(t.tags),
     };
+    if (clean.repeat !== "never") {
+      clean.anchor =
+        typeof t.anchor === "number" && isFinite(t.anchor) && t.anchor <= clean.targetTime
+          ? t.anchor
+          : clean.targetTime;
+    }
+    return clean;
+  }
+
+  // Validate and normalise a list from any source (storage, a backup file).
+  function sanitize(list) {
+    return Array.isArray(list) ? list.filter(isValidTimer).map(normalize) : [];
   }
 
   // Read all timers. Never throws: bad JSON or a non-array payload yields [].
@@ -75,14 +107,13 @@ CD.storage = (function () {
       return [];
     }
 
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidTimer).map(normalize);
+    return sanitize(parsed);
   }
 
   // Persist the full list. Returns true on success, false if storage failed.
   function saveTimers(timers) {
     if (!available) return false;
-    var clean = Array.isArray(timers) ? timers.filter(isValidTimer).map(normalize) : [];
+    var clean = sanitize(timers);
     try {
       window.localStorage.setItem(KEY, JSON.stringify(clean));
       return true;
@@ -144,6 +175,28 @@ CD.storage = (function () {
     }
   }
 
+  // The tag filter on the grid: a tag name, or "" for all timers.
+  function getFilter() {
+    if (!available) return "";
+    try {
+      var v = window.localStorage.getItem(FILTER_KEY);
+      return typeof v === "string" ? v : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function saveFilter(tag) {
+    if (!available) return false;
+    try {
+      if (tag) window.localStorage.setItem(FILTER_KEY, String(tag));
+      else window.localStorage.removeItem(FILTER_KEY);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   return {
     isAvailable: function () {
       return available;
@@ -151,6 +204,11 @@ CD.storage = (function () {
     getTimers: getTimers,
     saveTimers: saveTimers,
     deleteTimer: deleteTimer,
+    isValidTimer: isValidTimer,
+    normalize: normalize,
+    sanitize: sanitize,
+    getFilter: getFilter,
+    saveFilter: saveFilter,
     getSettings: getSettings,
     saveSettings: saveSettings,
   };

@@ -1,0 +1,77 @@
+name: CI
+
+# Docs-only changes (README, GIF, license) don't need a test run.
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "readme_assets/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".vscode/**"
+  push:
+    branches-ignore: [main] # main is tested by the deploy workflow
+    paths-ignore:
+      - "**.md"
+      - "readme_assets/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".vscode/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: test-results/
+          retention-days: 7
+
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Build exactly what gets deployed.
+      - run: |
+          mkdir _site
+          cp -r index.html styles.css manifest.webmanifest service-worker.js favicon.svg js icons _site/
+      - run: npx --yes @lhci/cli@0.15.1 autorun
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 7

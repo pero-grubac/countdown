@@ -1,18 +1,18 @@
 /*
- * service-worker.js — makes the app shell available offline.
+ * service-worker.js — offline support.
  *
- * Strategy:
- *   - Precache the shell on install (relative URLs, so it works from any
- *     GitHub Pages subpath).
- *   - Navigations: try the network, fall back to the cached index.html so the
- *     app opens offline.
- *   - Same-origin assets: cache-first (they're versioned by CACHE name).
+ *   - Precache the app shell on install (relative URLs, so it works from a
+ *     GitHub Pages project path).
+ *   - Page navigations: network first, cached index.html when offline, so a
+ *     new release shows up on the next visit with a connection.
+ *   - Same-origin files: served from the cache, refreshed in the background.
+ *   - localhost / 127.0.0.1: no caching at all, so development is never stale.
  *
- * Bump CACHE to ship an update; old caches are removed on activate.
+ * Bump CACHE on every release; old caches are deleted on activate.
  */
-var CACHE = "countdown-v5";
+const CACHE = "countdown-v7";
 
-var SHELL = [
+const SHELL = [
   "./",
   "index.html",
   "styles.css",
@@ -23,74 +23,59 @@ var SHELL = [
   "js/confetti.js",
   "js/notify.js",
   "js/share.js",
+  "js/ics.js",
+  "js/backup.js",
   "js/ui.js",
   "js/app.js",
   "manifest.webmanifest",
   "favicon.svg",
   "icons/icon-192.png",
   "icons/icon-512.png",
+  "icons/icon-maskable-512.png",
+  "icons/apple-touch-icon.png",
 ];
 
-self.addEventListener("install", function (event) {
-  event.waitUntil(
-    caches.open(CACHE).then(function (cache) {
-      // addAll is atomic; if one file 404s the install fails, so keep the list
-      // to files we know exist and let other assets be cached on first fetch.
-      return cache.addAll(SHELL);
-    })
-  );
+const isLocal = ["localhost", "127.0.0.1"].includes(self.location.hostname);
+
+self.addEventListener("install", (event) => {
+  if (!isLocal) event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
   self.skipWaiting();
 });
 
-self.addEventListener("activate", function (event) {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.map(function (k) {
-          if (k !== CACHE) return caches.delete(k);
-        })
-      );
-    })
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", function (event) {
-  var req = event.request;
-  if (req.method !== "GET") return;
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (isLocal || req.method !== "GET") return;
 
-  // App navigations: network-first, cached shell as the offline fallback.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).catch(function () {
-        return caches.match("index.html").then(function (r) {
-          return r || caches.match("./");
-        });
-      })
+      fetch(req).catch(() => caches.match("index.html").then((r) => r || caches.match("./"))),
     );
     return;
   }
 
-  var url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // let cross-origin (fonts) pass through
+  if (new URL(req.url).origin !== self.location.origin) return;
 
-  // Same-origin assets: serve from cache, then fill the cache in the background.
   event.respondWith(
-    caches.match(req).then(function (cached) {
-      var network = fetch(req)
-        .then(function (res) {
+    caches.match(req).then((cached) => {
+      const network = fetch(req)
+        .then((res) => {
           if (res && res.status === 200) {
-            var copy = res.clone();
-            caches.open(CACHE).then(function (c) {
-              c.put(req, copy);
-            });
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
           }
           return res;
         })
-        .catch(function () {
-          return cached;
-        });
+        .catch(() => cached);
       return cached || network;
-    })
+    }),
   );
 });

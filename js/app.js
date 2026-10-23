@@ -102,6 +102,58 @@
     return null;
   }
 
+  /* ---------- recurring timers ---------- */
+
+  // Move every recurring timer that has reached zero on to its next
+  // occurrence. Runs right after a paint, so the card has already played its
+  // alert for this one. Returns true if anything changed.
+  function rollDue(now) {
+    var changed = false;
+    timers = timers.map(function (t) {
+      var next = model.rollForward(t, now);
+      if (next !== t) changed = true;
+      return next;
+    });
+    if (changed) commit();
+    return changed;
+  }
+
+  /* ---------- calendar + backup ---------- */
+
+  // One timer (from its card) or all of them (from Settings).
+  function handleExportCalendar(id) {
+    var list = id ? [find(id)].filter(Boolean) : model.sortForDisplay(timers);
+    if (!list.length) {
+      ui.toast("There are no countdowns to export yet.");
+      return;
+    }
+    var name = id ? CD.ics.fileName(list[0]) : "countdowns.ics";
+    ui.download(name, "text/calendar;charset=utf-8", CD.ics.build(list, Date.now()));
+  }
+
+  function handleExportBackup() {
+    var day = new Date().toISOString().slice(0, 10);
+    ui.download(
+      "countdown-backup-" + day + ".json",
+      "application/json",
+      CD.backup.serialize(timers, Date.now())
+    );
+  }
+
+  function handleImportBackup(text) {
+    var parsed = CD.backup.parse(text);
+    if (parsed.error) {
+      ui.toast(parsed.error);
+      return;
+    }
+    var result = CD.backup.merge(timers, parsed.timers);
+    result.skipped = parsed.skipped;
+    timers = result.timers;
+    commit();
+    rollDue(Date.now());
+    ui.toast(CD.backup.summary(result));
+  }
+
   function find(id) {
     return timers.filter(function (t) {
       return t.id === id;
@@ -118,6 +170,7 @@
     if (now - lastPaint >= 250) {
       lastPaint = now;
       ui.tick(now);
+      rollDue(now);
     }
     window.requestAnimationFrame(frame);
   }
@@ -126,7 +179,9 @@
   // an immediate, correct repaint the instant we're visible or refocused again.
   function forceTick() {
     lastPaint = 0;
-    ui.tick(Date.now());
+    var now = Date.now();
+    ui.tick(now);
+    rollDue(now);
   }
 
   /* ---------- startup ---------- */
@@ -144,11 +199,23 @@
         scheduleNotifications();
       },
       onRefresh: repaint,
+      onExportCalendar: handleExportCalendar,
+      onExportBackup: handleExportBackup,
+      onImportBackup: handleImportBackup,
+      initialFilter: storage.getFilter(),
+      onFilterChange: function (tag) {
+        storage.saveFilter(tag);
+      },
     });
 
     if (!storage.isAvailable()) ui.showStorageWarning();
 
     load();
+    // Recurring timers that ended while the app was closed start over quietly.
+    timers = timers.map(function (t) {
+      return model.rollForward(t, Date.now());
+    });
+    persist();
     repaint();
     scheduleNotifications();
     maybeImportShared();
@@ -175,7 +242,7 @@
       return t.id === shared.id;
     });
     if (!exists) {
-      timers.push(shared);
+      timers.push(model.rollForward(shared, Date.now()));
       commit();
     }
     ui.flashShared(shared);

@@ -13,13 +13,20 @@ CD.ui = (function () {
   var fmt = CD.format;
   var model = CD.model;
 
-  var cb = {}; // { onNew, onEdit, onDelete, onSubmit }
+  var cb = {}; // { onNew, onEdit, onDelete, onSubmit, onExportCalendar, ... }
   var el = {}; // cached DOM references
   var cards = []; // live render refs, one per visible timer
   var editingId = null;
   var lastFocused = null; // element to restore focus to when the modal closes
 
   var STATE_TEXT = { active: "Active", soon: "Ending soon", expired: "Expired" };
+  var REPEAT_TEXT = {
+    daily: "Repeats daily",
+    weekly: "Repeats weekly",
+    monthly: "Repeats monthly",
+    yearly: "Repeats yearly",
+  };
+  var filter = ""; // selected tag, or "" for all timers
   var MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -63,6 +70,9 @@ CD.ui = (function () {
     el.dtMin = document.getElementById("dt-min");
     el.dtAmpm = document.getElementById("dt-ampm");
     el.dtTimeLabel = document.getElementById("dt-time-label");
+    el.repeat = document.getElementById("timer-repeat");
+    el.tags = document.getElementById("timer-tags");
+    el.filters = document.getElementById("filters");
     el.soundSelect = document.getElementById("timer-sound");
     el.soundPreview = document.getElementById("sound-preview");
     el.typeRadios = Array.prototype.slice.call(
@@ -154,10 +164,25 @@ CD.ui = (function () {
       applyTimeFormat();
     });
 
+    // Calendar export and JSON backup.
+    el.importFile = document.getElementById("import-file");
+    document.getElementById("export-ics").addEventListener("click", function () {
+      cb.onExportCalendar && cb.onExportCalendar();
+    });
+    document.getElementById("export-json").addEventListener("click", function () {
+      cb.onExportBackup && cb.onExportBackup();
+    });
+    document.getElementById("import-json").addEventListener("click", function () {
+      el.importFile.value = "";
+      el.importFile.click();
+    });
+    el.importFile.addEventListener("change", onImportFile);
+
     // Let audio start on the first interaction (browsers block it otherwise).
     CD.sound.armUnlock();
 
     if (cb.initialSettings) applySettings(cb.initialSettings);
+    if (typeof cb.initialFilter === "string") filter = cb.initialFilter;
 
     el.form.addEventListener("submit", onSubmit);
   }
@@ -287,6 +312,37 @@ CD.ui = (function () {
     }, 2600);
   }
 
+  /* ---------- downloads + import ---------- */
+
+  // Hand a file built in memory to the browser as a download.
+  function download(fileName, type, text) {
+    var blob = new Blob([text], { type: type });
+    var href = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = href;
+    a.download = fileName;
+    a.hidden = true;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () {
+      URL.revokeObjectURL(href);
+    }, 1000);
+  }
+
+  function onImportFile() {
+    var file = el.importFile.files && el.importFile.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      cb.onImportBackup && cb.onImportBackup(String(reader.result || ""));
+    };
+    reader.onerror = function () {
+      toast("Couldn't read that file.");
+    };
+    reader.readAsText(file);
+  }
+
   // Called by the controller after it imports a countdown from a share link.
   function flashShared(timer) {
     toast((timer.name ? "\u201C" + timer.name + "\u201D" : "Shared countdown") + " added.");
@@ -321,15 +377,48 @@ CD.ui = (function () {
 
   function render(timers, now) {
     clearGrid();
-    var ordered = model.sortForDisplay(timers);
+    var tags = model.allTags(timers);
+    // A remembered tag that no timer uses any more shows everything.
+    var active = tags.filter(function (t) {
+      return t.toLowerCase() === filter.toLowerCase();
+    })[0] || "";
+    renderFilters(tags, active);
 
-    el.empty.hidden = ordered.length > 0;
-    el.grid.hidden = ordered.length === 0;
+    var ordered = model.sortForDisplay(timers).filter(function (t) {
+      return !active || model.hasTag(t, active);
+    });
+
+    el.empty.hidden = timers.length > 0;
+    el.grid.hidden = timers.length === 0;
 
     ordered.forEach(function (t) {
       var ref = buildCard(t, now);
       el.grid.appendChild(ref.cardEl);
       cards.push(ref);
+    });
+  }
+
+  // "All" plus one toggle per tag; hidden entirely while no timer has a tag.
+  function renderFilters(tags, active) {
+    el.filters.textContent = "";
+    el.filters.hidden = tags.length === 0;
+    if (!tags.length) return;
+    [""].concat(tags).forEach(function (tag) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "filter";
+      b.textContent = tag || "All";
+      b.setAttribute("aria-pressed", String(tag === active));
+      b.addEventListener("click", function () {
+        if (tag === active) return;
+        filter = tag;
+        cb.onFilterChange && cb.onFilterChange(tag);
+        if (cb.onRefresh) cb.onRefresh();
+        // Keep keyboard focus on the same filter after the bar is rebuilt.
+        var again = el.filters.querySelector('[aria-pressed="true"]');
+        if (again) again.focus();
+      });
+      el.filters.appendChild(b);
     });
   }
 
@@ -388,6 +477,20 @@ CD.ui = (function () {
     head.appendChild(pill);
     card.appendChild(head);
 
+    // Tags as small chips under the name.
+    if (timer.tags && timer.tags.length) {
+      var tagList = document.createElement("ul");
+      tagList.className = "card__tags";
+      tagList.setAttribute("aria-label", "Tags");
+      timer.tags.forEach(function (tag) {
+        var li = document.createElement("li");
+        li.className = "tag";
+        li.textContent = tag;
+        tagList.appendChild(li);
+      });
+      card.appendChild(tagList);
+    }
+
     // Hero: the countdown itself.
     var time = document.createElement("div");
     time.className = "card__time";
@@ -409,6 +512,12 @@ CD.ui = (function () {
     var tgt = document.createElement("p");
     tgt.className = "card__target";
     tgt.textContent = fmt.target(timer.targetTime, now);
+    if (REPEAT_TEXT[timer.repeat]) {
+      var rep = document.createElement("span");
+      rep.className = "card__repeat";
+      rep.textContent = REPEAT_TEXT[timer.repeat];
+      tgt.appendChild(rep);
+    }
     card.appendChild(tgt);
 
     // Actions.
@@ -418,6 +527,11 @@ CD.ui = (function () {
     actions.appendChild(
       actionButton("Share", "Share " + label, function () {
         shareTimer(timer);
+      })
+    );
+    actions.appendChild(
+      actionButton("Calendar", "Add " + label + " to calendar", function () {
+        cb.onExportCalendar && cb.onExportCalendar(timer.id);
       })
     );
     actions.appendChild(
@@ -457,6 +571,7 @@ CD.ui = (function () {
     b.className = "btn btn--ghost" + (danger ? " btn--danger" : "");
     b.textContent = text;
     b.setAttribute("aria-label", ariaLabel);
+    b.title = ariaLabel;
     b.addEventListener("click", handler);
     return b;
   }
@@ -517,6 +632,7 @@ CD.ui = (function () {
     el.submit.textContent = "Create countdown";
     el.form.reset();
     setType("duration");
+    el.repeat.value = "never";
     el.soundSelect.value = CD.sound.DEFAULT;
     initCalendar(null);
     openModal();
@@ -529,6 +645,8 @@ CD.ui = (function () {
     el.form.reset();
     el.name.value = timer.name || "";
     el.soundSelect.value = CD.sound.has(timer.sound) ? timer.sound : CD.sound.DEFAULT;
+    el.repeat.value = model.normalizeRepeat(timer.repeat);
+    el.tags.value = (timer.tags || []).join(", ");
     // Prefill as an absolute date/time; the user can switch to duration.
     setType("datetime");
     var d = new Date(timer.targetTime);
@@ -731,6 +849,8 @@ CD.ui = (function () {
   function readForm() {
     var name = el.name.value;
     var sound = el.soundSelect.value;
+    var repeat = el.repeat.value;
+    var tags = el.tags.value;
     if (currentType() === "duration") {
       var d = parseInt(el.days.value, 10) || 0;
       var h = parseInt(el.hours.value, 10) || 0;
@@ -739,7 +859,9 @@ CD.ui = (function () {
         return { error: "Duration can't be negative." };
       }
       var durationMs = ((d * 24 + h) * 60 + m) * 60 * 1000;
-      return { input: { name: name, durationMs: durationMs, sound: sound } };
+      return {
+        input: { name: name, durationMs: durationMs, sound: sound, repeat: repeat, tags: tags },
+      };
     }
     if (!calSel) return { error: "Pick a date on the calendar." };
 
@@ -761,7 +883,7 @@ CD.ui = (function () {
     var t = readTime();
     // Compose from local components so the target is local wall-clock time.
     var ts = new Date(calSel.y, calSel.m, calSel.d, t.h, t.m, 0, 0).getTime();
-    return { input: { name: name, targetTime: ts, sound: sound } };
+    return { input: { name: name, targetTime: ts, sound: sound, repeat: repeat, tags: tags } };
   }
 
   function onSubmit(e) {
@@ -828,5 +950,7 @@ CD.ui = (function () {
     closeModal: closeModal,
     showStorageWarning: showStorageWarning,
     flashShared: flashShared,
+    toast: toast,
+    download: download,
   };
 })();

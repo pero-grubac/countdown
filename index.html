@@ -48,7 +48,7 @@
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
-          <button class="btn btn--primary" data-act="new" type="button">
+          <button class="btn btn--primary" data-act="new" type="button" aria-label="New countdown">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
               <path d="M12 5v14M5 12h14" />
             </svg>
@@ -79,6 +79,9 @@
           <span class="btn__label">New countdown</span>
         </button>
       </section>
+
+      <!-- Tag filter: only shown once at least one timer has a tag -->
+      <nav id="filters" class="filters" aria-label="Filter by tag" hidden></nav>
 
       <!-- Timer grid -->
       <section id="grid" class="grid" aria-label="Your countdowns" hidden></section>
@@ -188,6 +191,32 @@
             </div>
           </div>
 
+          <div class="field field--split">
+            <div>
+              <label for="timer-repeat">Repeats</label>
+              <select id="timer-repeat" class="repeat-select">
+                <option value="never">Never</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div>
+              <label for="timer-tags">Tags <span class="field__hint">(optional)</span></label>
+              <input
+                type="text"
+                id="timer-tags"
+                name="tags"
+                maxlength="120"
+                placeholder="work, family"
+                autocomplete="off"
+                aria-describedby="tags-hint"
+              />
+            </div>
+            <p id="tags-hint" class="field__note">Separate tags with commas. A repeating timer starts over at its next date when it ends.</p>
+          </div>
+
           <div class="field">
             <label for="timer-sound">Alert sound</label>
             <div class="sound-row">
@@ -274,6 +303,17 @@
             <span class="switch__track" aria-hidden="true"></span>
           </label>
         </div>
+
+        <section class="settings-section" aria-labelledby="data-title">
+          <h3 id="data-title" class="settings-section__title">Calendar &amp; backup</h3>
+          <p class="toggle-row__desc">Add every countdown to your calendar app, or save your timers to a file and load them on another device.</p>
+          <div class="settings-actions">
+            <button id="export-ics" class="btn btn--ghost" type="button">Export all to calendar</button>
+            <button id="export-json" class="btn btn--ghost" type="button">Export timers (JSON)</button>
+            <button id="import-json" class="btn btn--ghost" type="button">Import timers (JSON)</button>
+            <input id="import-file" type="file" accept=".json,application/json" hidden />
+          </div>
+        </section>
       </div>
     </div>
 
@@ -287,6 +327,8 @@
     <script src="js/confetti.js"></script>
     <script src="js/notify.js"></script>
     <script src="js/share.js"></script>
+    <script src="js/ics.js"></script>
+    <script src="js/backup.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/app.js"></script>
   </body>

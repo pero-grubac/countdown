@@ -85,7 +85,10 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    radial-gradient(1200px 520px at 50% -180px, var(--accent-soft), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 16px;
@@ -181,8 +184,13 @@ body.modal-open {
 
 /* ---------- header ---------- */
 .masthead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px);
 }
 
 .masthead__inner {
@@ -206,11 +214,12 @@ body.modal-open {
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: var(--accent);
+  background: linear-gradient(140deg, var(--accent), var(--accent-press));
   color: var(--on-accent);
   display: grid;
   place-items: center;
   flex: none;
+  box-shadow: 0 4px 14px var(--accent-soft);
 }
 .brand__glyph svg {
   width: 20px;
@@ -256,6 +265,38 @@ body.modal-open {
   font-size: 0.9rem;
 }
 
+/* tag filter bar */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 1.25rem;
+}
+.filters[hidden] {
+  display: none;
+}
+.filter {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: 0.38rem 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.filter:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.filter[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -273,6 +314,31 @@ body.modal-open {
   flex-direction: column;
   gap: 0.85rem;
   position: relative;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+/* A thin state-coloured edge along the top of every card. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--state-color, var(--accent)), transparent 85%);
+  opacity: 0.9;
+}
+.card[data-state="soon"] {
+  --state-color: var(--soon);
+  border-color: color-mix(in srgb, var(--soon) 35%, var(--line));
+}
+.card[data-state="expired"] {
+  --state-color: var(--expired);
+}
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-card), 0 18px 40px -18px var(--state-color, var(--accent));
+  }
 }
 
 .card__head {
@@ -308,6 +374,25 @@ body.modal-open {
   border-radius: var(--r-pill);
   border: 1px solid transparent;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill[data-state="soon"]::before {
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
 }
 .pill[data-state="active"] {
   color: var(--accent);
@@ -355,6 +440,7 @@ body.modal-open {
   font-size: clamp(1.7rem, 5vw, 2.1rem);
   font-weight: 600;
   letter-spacing: -0.01em;
+  line-height: 1;
   color: var(--expired);
 }
 
@@ -368,7 +454,7 @@ body.modal-open {
 .track__fill {
   height: 100%;
   width: 0;
-  background: var(--accent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
   border-radius: inherit;
   transition: width 0.25s linear;
 }
@@ -378,11 +464,47 @@ body.modal-open {
 .card[data-state="expired"] .track__fill {
   background: var(--expired);
 }
+.card[data-state="soon"] .num {
+  color: var(--soon);
+}
 
 .card__target {
   margin: 0;
   font-size: 0.86rem;
   color: var(--muted);
+}
+.card__repeat {
+  color: var(--accent);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.card__repeat::before {
+  content: "·";
+  margin: 0 0.4em;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: -0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--r-pill);
+  padding: 0.22rem 0.6rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card__actions {
@@ -394,8 +516,8 @@ body.modal-open {
 }
 .card__actions .btn {
   flex: 1;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
+  padding: 0.5rem 0.4rem;
+  font-size: 0.85rem;
 }
 
 /* ---------- empty state ---------- */
@@ -502,6 +624,32 @@ body.modal-open {
 .field__hint {
   font-weight: 400;
   color: var(--muted);
+}
+.field__note {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* repeat + tags side by side */
+.field--split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0 0.6rem;
+}
+.field--split label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 0.45rem;
+}
+.field--split .field__note {
+  grid-column: 1 / -1;
+}
+.repeat-select {
+  width: 100%;
+  padding: 0.62rem 0.6rem;
 }
 
 input[type="text"],
@@ -790,6 +938,32 @@ select:focus {
 }
 .toggle-hint[hidden] {
   display: none;
+}
+
+/* settings: calendar + backup */
+.settings-section {
+  padding: 0.95rem 0 0.2rem;
+  border-top: 1px solid var(--line);
+}
+.settings-section__title {
+  margin: 0 0 0.15rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.settings-section .toggle-row__desc {
+  max-width: none;
+  margin: 0;
+}
+.settings-actions {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+.settings-actions .btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.68rem 0.85rem;
 }
 
 /* toggle switch */

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build / deploy output
+_site/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage and reports
+coverage/
+test-results/
+playwright-report/
+.lighthouseci/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
