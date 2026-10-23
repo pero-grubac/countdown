@@ -289,10 +289,12 @@ Settings (`timeFormat`, `sound`, `confetti`, `notify`) are stored under a separa
 
 | Workflow | Runs on | What it does |
 |----------|---------|--------------|
-| `ci.yml` | Pull requests and pushes to branches other than `main` | Three parallel jobs: **unit** (`npm test`), **e2e** (Playwright on desktop and mobile Chromium, traces uploaded on failure) and **Lighthouse** (audits exactly the files that get deployed, report uploaded as an artifact) |
-| `deploy.yml` | Push to `main`, or a manual run | Unit and e2e tests, then publishes the site to GitHub Pages only if both pass |
+| `ci.yml` | Every push (including `main`) and pull request | Three parallel jobs: **unit** (`npm test`), **e2e** (Playwright on desktop and mobile Chromium, traces uploaded on failure) and **Lighthouse** (audits exactly the files that get deployed, report uploaded as an artifact) |
+| `deploy.yml` | After **CI passes on `main`**, or a manual run | Publishes the site's files to GitHub Pages; the tests already ran in CI |
 
-Both workflows **skip documentation-only changes**: a commit that only touches `*.md`, `readme_assets/`, `LICENSE`, `.gitignore` or `.vscode/` does not start a run. A new run on the same branch cancels the one still in progress.
+Deploy is chained to CI (`workflow_run`): a push to `main` is tested once, and only a green run is published, from exactly the commit that was tested. Documentation-only commits start neither.
+
+CI **skips documentation-only changes**: a commit that only touches `*.md`, `readme_assets/`, `LICENSE`, `.gitignore` or `.vscode/` does not start a run. A new run on the same branch cancels the one still in progress.
 
 Only the files the site needs are deployed (`index.html`, `styles.css`, `manifest.webmanifest`, `service-worker.js`, `favicon.svg`, `js/`, `icons/`); tests and tooling are not.
 

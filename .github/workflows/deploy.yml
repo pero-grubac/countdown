@@ -1,14 +1,11 @@
 name: Deploy
 
 on:
-  push:
+  # Runs after CI has passed on main, so the tests aren't run twice.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "readme_assets/**"
-      - "LICENSE"
-      - ".gitignore"
-      - ".vscode/**"
   workflow_dispatch:
 
 permissions:
@@ -21,39 +18,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-
-  e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: test-results/
-          retention-days: 7
-
   deploy:
-    needs: [test, e2e]
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -61,6 +27,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The commit CI just tested (workflow_run), otherwise the current one.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Collect site files
         run: |
           mkdir _site
