@@ -15,7 +15,7 @@
 
 [![Live Demo](https://img.shields.io/badge/⏱️_Live_Demo-countdown-3D5AF1?style=for-the-badge)](https://pero-grubac.github.io/countdown/)
 
-<img src="readme_assets/demo.gif" alt="Countdown demo: creating a daily standup timer with a tag, a daily timer running out with confetti and starting over for tomorrow, filtering the grid by tag, and the calendar and backup options in Settings" width="900">
+<img src="readme_assets/demo.gif" alt="Countdown demo: creating a daily standup timer with the +15m chip and a work tag, a pizza timer running out with confetti, filtering the grid by the work tag, and the Settings panel" width="900">
 
 </div>
 
